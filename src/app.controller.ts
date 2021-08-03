@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { AppService } from './app.service';
 import { LocalAuthGuard } from './auth/local-auth.guard';
 import { UsersService } from './users/users.service';
@@ -18,7 +19,8 @@ export class AppController {
 
   @Post('login')
   @UseGuards(LocalAuthGuard)
-  login() {
+  login(@Res() res: Response) {
+    res.status(200).redirect('/products');
     return { message: 'Logged In' };
   }
 
