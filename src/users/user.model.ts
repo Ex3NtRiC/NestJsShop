@@ -25,8 +25,17 @@ export const UserSchema = new Schema({
           type: Number,
           required: true,
         },
+        price: {
+          type: Number,
+          required: true,
+        },
       },
     ],
+    total: {
+      type: Number,
+      default: 0,
+      required: true,
+    },
   },
 });
 
@@ -38,10 +47,12 @@ export interface User extends Document {
 }
 
 export interface cart {
-  items: cartObj[];
+  items: items[];
+  total: number;
 }
 
-interface cartObj {
+interface items {
   product: Types.ObjectId;
+  price: number;
   quantity: number;
 }

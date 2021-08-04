@@ -92,6 +92,27 @@ export class ProductsService {
     }
   }
 
+  async hasProduct(id: string, user: User): Promise<boolean> {
+    try {
+      this.logger.log(`Finding product with id: ${id}`);
+      const product = await this.productModel.find({
+        _id: new Types.ObjectId(id),
+        owner: user.id,
+      });
+      if (product) {
+        return true;
+      }
+      return false;
+    } catch (err) {
+      if (err.message.indexOf('Cast to ObjectId failed') !== -1) {
+        throw new NotFoundException('No such product found');
+      }
+      throw new InternalServerErrorException(
+        'Error Occured, please try again later',
+      );
+    }
+  }
+
   async addProduct(addProductDto: AddProductDto, user: User): Promise<void> {
     const { title, description, price } = addProductDto;
     console.log('sevice,user:', user);

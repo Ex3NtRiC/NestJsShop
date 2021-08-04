@@ -17,6 +17,8 @@ import { AddProductDto } from 'src/products/add-product.dto';
 import { Product } from 'src/products/product.model';
 import { EditProductDto } from 'src/products/edit-product.dto';
 import { productStatus } from 'src/products/product-status.enum';
+import { OrdersService } from 'src/orders/orders.service';
+import { Order } from 'src/orders/order.model';
 
 @Injectable()
 export class UsersService {
@@ -24,6 +26,7 @@ export class UsersService {
   constructor(
     @InjectModel('User') private readonly userModel: Model<User>,
     private readonly productsService: ProductsService,
+    private readonly ordersService: OrdersService,
   ) {}
 
   async createUser(
@@ -87,21 +90,40 @@ export class UsersService {
     return this.productsService.editProduct(editProductDto, id, user);
   }
 
-  deleteProduct(id: string, user: User): Promise<void> {
-    return this.productsService.deleteProduct(id, user);
+  async test(id: string) {
+    const users: User[] = await this.userModel.find({
+      'cart.items.product': Types.ObjectId(id),
+    });
+    console.log('user', users);
   }
 
-  async getCart(user: User): Promise<cart | string> {
+  async deleteProduct(id: string, user: User): Promise<void> {
+    try {
+      const exists: boolean = await this.productsService.hasProduct(id, user);
+      if (exists) {
+        const users: User[] = await this.userModel.find({
+          'cart.items.product': Types.ObjectId(id),
+        });
+        if (users.length > 0) {
+          await users.forEach((user) => this.removeFromCart(id, user));
+        }
+      }
+      await this.productsService.deleteProduct(id, user);
+    } catch (err) {
+      throw new InternalServerErrorException(
+        'Error Occured, please try again laster!',
+      );
+    }
+  }
+
+  async getCart(user: User): Promise<cart> {
     const u: User = await this.findOne(user.email);
     if (!u) {
       throw new UnauthorizedException();
     }
     this.logger.log('fetching cart');
     const cart: cart = u.cart;
-    if (cart.items.length > 0) {
-      return cart;
-    }
-    return 'Your cart is empty';
+    return cart;
   }
 
   async addToCart(
@@ -121,17 +143,28 @@ export class UsersService {
     if (!u) {
       throw new UnauthorizedException();
     }
+    const additionPrice = +quantity * +product.price;
     const itemIndex: number = this.itemIndex(prodId, u);
     if (itemIndex > -1) {
       this.logger.log('Adding an existing product to cart');
       u.cart.items[itemIndex].quantity += quantity;
+      u.cart.items[itemIndex].price += additionPrice;
     } else {
       this.logger.log('Adding a new product to cart');
-      u.cart.items.push({ product: new Types.ObjectId(prodId), quantity });
+      u.cart.items.push({
+        product: new Types.ObjectId(prodId),
+        quantity,
+        price: additionPrice,
+      });
     }
     try {
+      if (!u.cart.total) {
+        u.cart.total = 0;
+      }
+      u.cart.total += additionPrice;
       await u.save();
     } catch (err) {
+      console.log(err);
       throw new InternalServerErrorException(
         'Error occured, pelase try again later!',
       );
@@ -147,6 +180,8 @@ export class UsersService {
     const itemIndex: number = this.itemIndex(prodId, u);
     if (itemIndex > -1) {
       this.logger.log(`removing ${prodId} from cart`);
+      const price: number = u.cart.items[itemIndex].price;
+      u.cart.total -= price;
       u.cart.items.splice(itemIndex, 1);
       await u.save();
     } else {
@@ -159,5 +194,32 @@ export class UsersService {
       (item) => item.product.toString() === prodId,
     );
     return itemIndex;
+  }
+
+  fetchOrders(user: User): Promise<Order[] | string> {
+    return this.ordersService.fetchOrders(user);
+  }
+
+  async orderProducts(user: User): Promise<void> {
+    const cart: cart = await this.getCart(user);
+    if (!(cart.items.length > 0)) {
+      throw new ForbiddenException('Cart is empty');
+    }
+    try {
+      this.logger.log(`Creating a new Order for ${user.name}`);
+      await this.ordersService.addOrder(cart, user);
+      const u: User = await this.findOne(user.email);
+      if (!u) {
+        throw new UnauthorizedException();
+      }
+      u.cart.items = [];
+      u.cart.total = 0;
+      this.logger.log('Order is done');
+      await u.save();
+    } catch {
+      throw new InternalServerErrorException(
+        'Error occured, pelase try again later!',
+      );
+    }
   }
 }

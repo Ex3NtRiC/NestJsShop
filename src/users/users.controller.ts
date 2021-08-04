@@ -79,8 +79,11 @@ export class UsersController {
   }
 
   @Get('cart')
-  getCart(@GetUser() user: User) {
-    return this.usersService.getCart(user);
+  getCart(@GetUser() user: User, @Param('name') name: string) {
+    if (name === user.name) {
+      return this.usersService.getCart(user);
+    }
+    throw new NotFoundException('Page Not Found');
   }
 
   @Put('add-to-cart/:id')
@@ -106,5 +109,26 @@ export class UsersController {
       return this.usersService.removeFromCart(id, user);
     }
     throw new NotFoundException('Page Not Found');
+  }
+
+  @Get('orders')
+  getOrders(@GetUser() user: User, @Param('name') name: string) {
+    if (name === user.name) {
+      return this.usersService.fetchOrders(user);
+    }
+    throw new NotFoundException('Page Not Found');
+  }
+
+  @Post('add-order')
+  addOrder(@GetUser() user: User, @Param('name') name: string) {
+    if (name === user.name) {
+      return this.usersService.orderProducts(user);
+    }
+    throw new NotFoundException('Page Not Found');
+  }
+
+  @Get('test/:id')
+  test(@Param('id') id: string) {
+    this.usersService.test(id);
   }
 }

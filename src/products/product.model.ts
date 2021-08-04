@@ -27,7 +27,6 @@ export const ProductSchema = new Schema({
 });
 
 export interface Product extends Document {
-  id: string;
   title: string;
   description: string;
   price: number;

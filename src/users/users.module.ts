@@ -4,9 +4,11 @@ import { UserSchema } from './user.model';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { ProductsModule } from 'src/products/products.module';
+import { OrdersModule } from 'src/orders/orders.module';
 @Module({
   imports: [
     ProductsModule,
+    OrdersModule,
     MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]),
   ],
   providers: [UsersService],
