@@ -1,4 +1,4 @@
-import { Document, Schema } from 'mongoose';
+import { Document, Schema, Types } from 'mongoose';
 
 export const UserSchema = new Schema({
   name: {
@@ -34,4 +34,14 @@ export interface User extends Document {
   name: string;
   email: string;
   password: string;
+  cart: cart;
+}
+
+export interface cart {
+  items: cartObj[];
+}
+
+interface cartObj {
+  product: Types.ObjectId;
+  quantity: number;
 }

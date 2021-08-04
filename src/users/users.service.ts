@@ -3,19 +3,24 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { User } from './user.model';
+import { Model, Types } from 'mongoose';
+import { cart, User } from './user.model';
 import { hash } from 'bcrypt';
 import { ProductsService } from 'src/products/products.service';
 import { FetchProductsFilter } from 'src/products/fetch-products.dto';
 import { AddProductDto } from 'src/products/add-product.dto';
 import { Product } from 'src/products/product.model';
 import { EditProductDto } from 'src/products/edit-product.dto';
+import { productStatus } from 'src/products/product-status.enum';
 
 @Injectable()
 export class UsersService {
+  logger = new Logger('Users Service');
   constructor(
     @InjectModel('User') private readonly userModel: Model<User>,
     private readonly productsService: ProductsService,
@@ -40,6 +45,7 @@ export class UsersService {
       password: hashPw,
     });
     try {
+      this.logger.log('creating user');
       const res = await user.save();
       return { id: res.id, name: res.name, email: res.email };
     } catch (err) {
@@ -52,6 +58,7 @@ export class UsersService {
 
   async findOne(email: string): Promise<User | undefined> {
     try {
+      this.logger.log(`finding user by email: ${email}`);
       return await this.userModel.findOne({ email });
     } catch (err) {
       console.log(err);
@@ -82,5 +89,75 @@ export class UsersService {
 
   deleteProduct(id: string, user: User): Promise<void> {
     return this.productsService.deleteProduct(id, user);
+  }
+
+  async getCart(user: User): Promise<cart | string> {
+    const u: User = await this.findOne(user.email);
+    if (!u) {
+      throw new UnauthorizedException();
+    }
+    this.logger.log('fetching cart');
+    const cart: cart = u.cart;
+    if (cart.items.length > 0) {
+      return cart;
+    }
+    return 'Your cart is empty';
+  }
+
+  async addToCart(
+    prodId: string,
+    // eslint-disable-next-line @typescript-eslint/no-inferrable-types
+    quantity: number = 1,
+    user: User,
+  ): Promise<void> {
+    const product: Product = await this.productsService.findOne(prodId);
+    if (!product) {
+      throw new NotFoundException('No such product!');
+    }
+    if (product.status === productStatus.PRODUCT_SOLD) {
+      throw new ConflictException('Product is Sold out!');
+    }
+    const u: User = await this.findOne(user.email);
+    if (!u) {
+      throw new UnauthorizedException();
+    }
+    const itemIndex: number = this.itemIndex(prodId, u);
+    if (itemIndex > -1) {
+      this.logger.log('Adding an existing product to cart');
+      u.cart.items[itemIndex].quantity += quantity;
+    } else {
+      this.logger.log('Adding a new product to cart');
+      u.cart.items.push({ product: new Types.ObjectId(prodId), quantity });
+    }
+    try {
+      await u.save();
+    } catch (err) {
+      throw new InternalServerErrorException(
+        'Error occured, pelase try again later!',
+      );
+    }
+  }
+
+  async removeFromCart(prodId: string, user: User): Promise<void> {
+    const product: Product = await this.productsService.findOne(prodId);
+    if (!product) {
+      throw new NotFoundException('No such product!');
+    }
+    const u: User = await this.findOne(user.email);
+    const itemIndex: number = this.itemIndex(prodId, u);
+    if (itemIndex > -1) {
+      this.logger.log(`removing ${prodId} from cart`);
+      u.cart.items.splice(itemIndex, 1);
+      await u.save();
+    } else {
+      throw new NotFoundException("You don't have such a product in ur cart");
+    }
+  }
+
+  itemIndex(prodId, user: User): number {
+    const itemIndex = user.cart.items.findIndex(
+      (item) => item.product.toString() === prodId,
+    );
+    return itemIndex;
   }
 }

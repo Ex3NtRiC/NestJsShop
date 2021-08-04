@@ -2,6 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -14,6 +15,7 @@ import { Product } from './product.model';
 
 @Injectable()
 export class ProductsService {
+  logger = new Logger('Products Service');
   constructor(
     @InjectModel('Product') private readonly productModel: Model<Product>,
   ) {}
@@ -41,7 +43,7 @@ export class ProductsService {
     if (minPrice) {
       query.where({ price: { $gte: +minPrice } });
     }
-
+    this.logger.log(`fetching products`);
     return await query.exec();
   }
 
@@ -72,7 +74,22 @@ export class ProductsService {
       query.where({ price: { $gte: +minPrice } });
     }
 
+    this.logger.log(`fetching user products`);
     return await query.exec();
+  }
+
+  async findOne(id: string): Promise<Product> {
+    try {
+      this.logger.log(`Finding product with id: ${id}`);
+      return await this.productModel.findById(id);
+    } catch (err) {
+      if (err.message.indexOf('Cast to ObjectId failed') !== -1) {
+        throw new NotFoundException('No such product found');
+      }
+      throw new InternalServerErrorException(
+        'Error Occured, please try again later',
+      );
+    }
   }
 
   async addProduct(addProductDto: AddProductDto, user: User): Promise<void> {
@@ -86,9 +103,9 @@ export class ProductsService {
       status: productStatus.PRODUCT_AVAILABLE,
     });
     try {
+      this.logger.log(`adding new product: ${title}`);
       await product.save();
     } catch (err) {
-      console.log(err);
       throw new InternalServerErrorException(
         'Error occured, please try again later',
       );
@@ -122,11 +139,12 @@ export class ProductsService {
     if (status) {
       product.status = status;
     }
-
+    this.logger.log(`editing new product: ${title}`);
     await product.save();
   }
 
   async deleteProduct(id: string, user: User): Promise<void> {
+    this.logger.log(`deleting product with id: ${id}`);
     const res = await this.productModel.findOneAndDelete({
       _id: new Types.ObjectId(id),
       owner: user.id,

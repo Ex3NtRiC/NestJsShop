@@ -10,6 +10,7 @@ import {
   Delete,
   Patch,
   Logger,
+  Put,
 } from '@nestjs/common';
 import { GetUser } from 'src/auth/get-user.decorator';
 import { IsAuthenticated } from 'src/auth/isAuth.guard';
@@ -73,6 +74,36 @@ export class UsersController {
   ) {
     if (name === user.name) {
       return this.usersService.deleteProduct(id, user);
+    }
+    throw new NotFoundException('Page Not Found');
+  }
+
+  @Get('cart')
+  getCart(@GetUser() user: User) {
+    return this.usersService.getCart(user);
+  }
+
+  @Put('add-to-cart/:id')
+  addToCart(
+    @GetUser() user: User,
+    @Param('id') id: string,
+    @Param('name') name: string,
+    @Body('quantity') quantity: number,
+  ) {
+    if (name === user.name) {
+      return this.usersService.addToCart(id, quantity, user);
+    }
+    throw new NotFoundException('Page Not Found');
+  }
+
+  @Delete('remove-from-cart/:id')
+  removeFromcart(
+    @GetUser() user: User,
+    @Param('id') id: string,
+    @Param('name') name: string,
+  ) {
+    if (name === user.name) {
+      return this.usersService.removeFromCart(id, user);
     }
     throw new NotFoundException('Page Not Found');
   }
